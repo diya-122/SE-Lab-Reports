@@ -10,6 +10,9 @@ ENTRY_TIME = 2.0
 # without changing the function's signature or the call site in draw().
 _current_wave = 1
 
+# Banner state: set by on_wave_start(), ticked in update(), drawn in draw().
+_banner = {"text": "", "timer": 0.0}
+
 
 def bezier(p0, p1, p2, p3, t):
     u = 1 - t
@@ -54,7 +57,8 @@ def enemy_tint(kind):
 
 def on_wave_start(wave):
     """Called at the start of every wave; add banners, speed-ups, or palette swaps here."""
-    pass
+    _banner["text"] = f"WAVE {wave}"
+    _banner["timer"] = 1.0
 
 
 def shield_charges(wave):
@@ -123,6 +127,7 @@ def spawn_wave(wave):
 class Game:
     def __init__(self):
         self.stars = [[random.randint(0, WIDTH), random.randint(0, HEIGHT), random.uniform(30, 120)] for _ in range(70)]
+        self.banner_font = pygame.font.Font(None, 72)  # large font for wave banner
         self.reset()
 
     def reset(self):
@@ -168,6 +173,8 @@ class Game:
         if self.state != "play":
             return
         self.time += dt
+        if _banner["timer"] > 0:
+            _banner["timer"] = max(0.0, _banner["timer"] - dt)
         self.cooldown -= dt
         self.invulnerable = max(0.0, self.invulnerable - dt)
         span = SHIP_GAP * (self.ships - 1)
@@ -241,6 +248,9 @@ class Game:
                 pygame.draw.polygon(screen, (220, 60, 60), [(sx - 14, PLAYER_Y + 12), (sx - 6, PLAYER_Y - 2), (sx - 4, PLAYER_Y + 12)])
         hud = font.render(f"Score {self.score}  Lives {self.lives}  Wave {self.wave}  R = reset", True, (240, 240, 240))
         screen.blit(hud, (10, 8))
+        if _banner["timer"] > 0:
+            banner_surf = self.banner_font.render(_banner["text"], True, (255, 220, 50))
+            screen.blit(banner_surf, banner_surf.get_rect(center=(WIDTH // 2, HEIGHT // 2)))
         if self.state == "lose":
             label = font.render("GAME OVER - Press R", True, (255, 255, 120))
             screen.blit(label, label.get_rect(center=(WIDTH // 2, HEIGHT // 2)))
