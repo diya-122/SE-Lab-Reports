@@ -62,8 +62,13 @@ def on_wave_start(wave):
 
 
 def shield_charges(wave):
-    """Return how many hits the player's shield can absorb this wave, or None to disable the shield."""
-    pass
+    """Return how many hits the player's shield can absorb this wave, or None to disable the shield.
+
+    Grants 1 shield charge on every third wave (3, 6, 9, 12, …).
+    The charge is consumed by hit_player(): self.shield > 0 absorbs one
+    hit and returns early, preventing any ship or life from being lost.
+    """
+    return 1 if wave % 3 == 0 else 0
 
 
 ENEMY_COLORS = {"boss": (90, 220, 90), "red": (230, 70, 70), "blue": (80, 140, 240)}
