@@ -6,6 +6,10 @@ WIDTH, HEIGHT = 600, 700
 PLAYER_Y, PLAYER_SPEED, SHIP_GAP = HEIGHT - 50, 300, 30
 ENTRY_TIME = 2.0
 
+# Tracks the current wave number so that enemy_tint() can read it
+# without changing the function's signature or the call site in draw().
+_current_wave = 1
+
 
 def bezier(p0, p1, p2, p3, t):
     u = 1 - t
@@ -15,8 +19,37 @@ def bezier(p0, p1, p2, p3, t):
 
 
 def enemy_tint(kind):
-    """Return an (r, g, b) colour override for an enemy kind, or None for the default."""
-    pass
+    """Return an (r, g, b) colour override for an enemy kind, or None for the default.
+
+    Colors shift every 2 waves to give each wave a visually distinct palette:
+      tier 0 (wave 1-2)  : default hues  – green boss, red, blue
+      tier 1 (wave 3-4)  : warm shift    – yellow-green boss, orange-red, cyan
+      tier 2 (wave 5-6)  : hot shift     – gold boss, deep crimson, violet
+      tier 3 (wave 7+)   : extreme shift – white-hot boss, magenta, ice-white
+    """
+    tier = min((_current_wave - 1) // 2, 3)
+
+    TINTS = {
+        "boss": [
+            (90,  220,  90),   # tier 0 – lime green
+            (180, 220,  40),   # tier 1 – yellow-green
+            (220, 180,   0),   # tier 2 – gold
+            (255, 255, 160),   # tier 3 – white-hot
+        ],
+        "red": [
+            None,              # tier 0 – use default ENEMY_COLORS
+            (240, 130,  30),   # tier 1 – orange
+            (200,  20,  60),   # tier 2 – deep crimson
+            (255,   0, 180),   # tier 3 – magenta
+        ],
+        "blue": [
+            None,              # tier 0 – use default ENEMY_COLORS
+            ( 40, 220, 220),   # tier 1 – cyan
+            (160,  60, 240),   # tier 2 – violet
+            (200, 230, 255),   # tier 3 – ice-white
+        ],
+    }
+    return TINTS.get(kind, [None] * 4)[tier]
 
 
 def on_wave_start(wave):
@@ -74,6 +107,8 @@ class Enemy:
 
 
 def spawn_wave(wave):
+    global _current_wave
+    _current_wave = wave
     enemies, index = [], 0
     layout = [("boss", 4, 90), ("red", 8, 130), ("red", 8, 170), ("blue", 8, 210)]
     for kind, count, y in layout:
