@@ -1,0 +1,43 @@
+From a2ce928cce3191469d67d5a2f22654673c87284b Mon Sep 17 00:00:00 2001
+From: p7504214 <p7504214@gmail.com>
+Date: Thu, 5 Nov 2026 12:59:05 +0000
+Subject: [PATCH 2/4] Fix Flake8 PEP 8 issues: whitespace around
+ operators/commas, inline comment spacing, blank lines
+
+---
+ event_manager.py | 7 ++++---
+ 1 file changed, 4 insertions(+), 3 deletions(-)
+
+diff --git a/event_manager.py b/event_manager.py
+index 2a012f4..f75cda9 100644
+--- a/event_manager.py
++++ b/event_manager.py
+@@ -69,12 +69,12 @@ def printBadges(eventName):
+ 
+ def main():
+     createEvent("Tech Meetup", "Hall A", 3)
+-    createEvent("Alumni Dinner", "Rooftop",2)
++    createEvent("Alumni Dinner", "Rooftop", 2)
+     registerGuest("Tech Meetup", "Asha")
+     registerGuest("Tech Meetup", "Ravi")
+     registerGuest("Alumni Dinner", "Meena")
+     registerGuest("Workshop", "Kiran")
+-    left=seatsLeft("Tech Meetup")
++    left = seatsLeft("Tech Meetup")
+     print("Seats left at Tech Meetup:", left)
+     print("Seats left at Alumni Dinner:", seatsLeft("Alumni Dinner"))
+     print("Tech Meetup guests:", guestReport("Tech Meetup", "name"))
+@@ -83,8 +83,9 @@ def main():
+     winner = secrets.choice(events["Tech Meetup"]["guests"])
+     print("Lucky draw winner:", winner)
+     saveEvents()
+-    restored = loadEvents() # reload to confirm the save worked
++    restored = loadEvents()  # reload to confirm the save worked
+     print("Events restored from file:", len(restored))
+     print("Venues:", [e["venue"] for e in restored.values()])
+ 
++
+ main()
+-- 
+2.43.0
+

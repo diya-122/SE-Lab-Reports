@@ -1,0 +1,5 @@
+705a4d9 Add issue table, reflection answers and before/after analysis reports
+d45f7ab Fix Pylint issues: mutable default argument, snake_case names, docstrings, unused sort_order argument, no-else-return, main guard
+a2ce928 Fix Flake8 PEP 8 issues: whitespace around operators/commas, inline comment spacing, blank lines
+446d52f Fix Bandit security issues: replace pickle with json, os.system with safe subprocess, random with secrets
+b6bf665 Initial commit

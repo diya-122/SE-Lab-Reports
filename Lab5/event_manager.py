@@ -1,0 +1,117 @@
+"""Event management system: create events, register guests and report on them.
+
+Events are kept in the module-level ``events`` dictionary and can be saved to
+and restored from a JSON file.
+"""
+import json
+import re
+import secrets
+import shutil
+# subprocess is only used with a fixed argument list and no shell.
+import subprocess  # nosec B404
+from datetime import date
+
+events = {}
+
+
+def create_event(event_name, venue, capacity=50, guests=None):
+    """Create an event and return its record.
+
+    A new guest list is made for every event, so events never share guests.
+    """
+    events[event_name] = {"venue": venue, "capacity": capacity,
+                          "guests": list(guests) if guests else []}
+    return events[event_name]
+
+
+def register_guest(event_name, guest):
+    """Add a guest to an event; return True on success, False otherwise."""
+    event = events.get(event_name)
+    if event is None:
+        print("No such event:", event_name)
+        return False
+    if len(event["guests"]) >= event["capacity"]:
+        print(event_name, "is full, cannot add", guest)
+        return False
+    event["guests"].append(guest)
+    return True
+
+
+def seats_left(event_name):
+    """Return the number of free seats for an event."""
+    event = events[event_name]
+    return event["capacity"] - len(event["guests"])
+
+
+def event_status(event_date):
+    """Return "Upcoming" for today or a future date, otherwise "Completed"."""
+    if event_date >= date.today():
+        return "Upcoming"
+    return "Completed"
+
+
+def guest_report(event_name, sort_order="name"):
+    """Return the guest list as a comma-separated string.
+
+    sort_order is "name" for alphabetical order or "registration" for the
+    order in which guests registered.
+    """
+    guests = events[event_name]["guests"]
+    if sort_order == "name":
+        names = sorted(guests)
+    elif sort_order == "registration":
+        names = list(guests)
+    else:
+        raise ValueError("sort_order must be 'name' or 'registration'")
+    return ", ".join(names)
+
+
+def save_events(file_name="events.json"):
+    """Save all events to a JSON file."""
+    with open(file_name, "w", encoding="utf-8") as file:
+        json.dump(events, file, indent=2)
+
+
+def load_events(file_name="events.json"):
+    """Load events from a JSON file and return them as a dictionary."""
+    with open(file_name, "r", encoding="utf-8") as file:
+        return json.load(file)
+
+
+def print_badges(event_name):
+    """Send an event's badge file to the printer (not called by the demo)."""
+    if not re.fullmatch(r"[A-Za-z0-9 _-]+", event_name):
+        raise ValueError("Unsafe event name: " + repr(event_name))
+    lp_path = shutil.which("lp")
+    if lp_path is None:
+        print("Printer command 'lp' not found")
+        return
+    # Absolute path, list arguments, shell=False and a validated name.
+    subprocess.run([lp_path, "badges_" + event_name + ".txt"],  # nosec B603
+                   check=False)
+
+
+def main():
+    """Run a short demonstration of the event manager."""
+    create_event("Tech Meetup", "Hall A", 3)
+    create_event("Alumni Dinner", "Rooftop", 2)
+    register_guest("Tech Meetup", "Asha")
+    register_guest("Tech Meetup", "Ravi")
+    register_guest("Alumni Dinner", "Meena")
+    register_guest("Workshop", "Kiran")
+    left = seats_left("Tech Meetup")
+    print("Seats left at Tech Meetup:", left)
+    print("Seats left at Alumni Dinner:", seats_left("Alumni Dinner"))
+    print("Tech Meetup guests:", guest_report("Tech Meetup", "name"))
+    print("Tech Meetup is", event_status(date(2099, 1, 15)))
+    print("Alumni Dinner is", event_status(date(2020, 5, 1)))
+    winner = secrets.choice(events["Tech Meetup"]["guests"])
+    print("Lucky draw winner:", winner)
+    save_events()
+    restored = load_events()  # reload to confirm the save worked
+    print("Events restored from file:", len(restored))
+    print("Venues:", [e["venue"] for e in restored.values()])
+
+
+if __name__ == "__main__":
+    main()

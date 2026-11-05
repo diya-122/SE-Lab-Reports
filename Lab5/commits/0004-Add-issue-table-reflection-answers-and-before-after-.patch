@@ -1,0 +1,146 @@
+From 705a4d91103e5da4b674e283ba88fa96d800deb2 Mon Sep 17 00:00:00 2001
+From: p7504214 <p7504214@gmail.com>
+Date: Thu, 5 Nov 2026 13:00:20 +0000
+Subject: [PATCH 4/4] Add issue table, reflection answers and before/after
+ analysis reports
+
+---
+ issues.md                       | 36 +++++++++++++++++++++++++++++++++
+ reflection.md                   | 30 +++++++++++++++++++++++++++
+ reports/after/bandit_report.txt | 27 +++++++++++++++++++++++++
+ reports/after/flake8_report.txt |  0
+ reports/after/pylint_report.txt |  4 ++++
+ 5 files changed, 97 insertions(+)
+ create mode 100644 issues.md
+ create mode 100644 reflection.md
+ create mode 100644 reports/after/bandit_report.txt
+ create mode 100644 reports/after/flake8_report.txt
+ create mode 100644 reports/after/pylint_report.txt
+
+diff --git a/issues.md b/issues.md
+new file mode 100644
+index 0000000..cf36e82
+--- /dev/null
++++ b/issues.md
+@@ -0,0 +1,36 @@
++# Issues Found and Fixed — `event_manager.py`
++
++Line numbers refer to the original file (commit `b6bf665`). Ordered by severity, highest first.
++
++| # | Issue | Type | Tool / Code | Severity | Line(s) | Description | Fix Approach |
++|---|-------|------|-------------|----------|---------|-------------|--------------|
++| 1 | Shell command injection | Security | Bandit B605 | High | 56 | `os.system("lp badges_" + eventName + ".txt")` runs through a shell, so an event name such as `x; rm -rf ~` would execute extra commands. | Replaced with `subprocess.run([...], check=False)` (no shell, list arguments), resolved `lp` to an absolute path with `shutil.which`, and validated the event name with an allow-list regex. |
++| 2 | Unsafe deserialisation | Security | Bandit B301 / B403 | Medium (B301), Low (B403) | 2, 44–51 | `pickle.load` can execute arbitrary code if `events.pkl` is tampered with. | Switched save/load to `json` with explicit `encoding="utf-8"`; file is now `events.json`. Removed the `pickle` import. |
++| 3 | Mutable default argument (runtime bug) | Bug | Pylint W0102 | Medium | 9–11 | `guests=[]` is created once and shared by every event. Both events used the same list, so the Alumni Dinner (capacity 2) was "full" after Asha and Ravi registered for the Tech Meetup, Meena was rejected, and its seat count showed 0. | Default changed to `guests=None`; a fresh list (`list(guests) if guests else []`) is made per event. Alumni Dinner now correctly shows 1 seat left and accepts Meena. |
++| 4 | Insecure random generator | Security | Bandit B311 | Low | 72 | `random.choice` is predictable; a lucky draw should not be guessable. | Replaced with `secrets.choice`. |
++| 5 | Subprocess follow-up warnings | Security | Bandit B404 / B603 / B607 | Low | 56 (after fix 1) | After moving to `subprocess`, Bandit flags the import, the call, and the partial path `lp`. | B607 fixed by using the absolute path from `shutil.which`. B404/B603 reviewed and suppressed with targeted `# nosec` comments, with the reasoning on the line above (no shell, fixed argument list, validated input). |
++| 6 | Unused argument | Bug / Quality | Pylint W0613 | Medium | 39–41 | `guestReport` accepts `sortOrder` but ignores it, so callers silently get the same result for any value. | Implemented it: `"name"` sorts alphabetically, `"registration"` keeps signup order, anything else raises `ValueError`. |
++| 7 | Non-snake_case names | Convention | Pylint C0103 | Low | 9–54 | Function and argument names use camelCase (`createEvent`, `eventName`, …). | Renamed to PEP 8 snake_case (`create_event`, `event_name`, …) and updated all call sites. |
++| 8 | Missing docstrings | Convention | Pylint C0114 / C0116 | Low | 1, all functions | No module or function docstrings. | Added a module docstring and a docstring for every function. |
++| 9 | Unnecessary `else` after `return` | Refactor | Pylint R1705 | Low | 33–36 | `else:` after a `return` adds nesting for no reason. | Removed the `else` and de-indented. |
++| 10 | Code runs on import | Quality | Review | Low | 79 | `main()` at module level runs the demo whenever the file is imported. | Wrapped in `if __name__ == "__main__":`. |
++| 11 | Missing whitespace after `,` | Style | Flake8 E231 | Low | 61 | `"Rooftop",2` | Added a space: `"Rooftop", 2`. |
++| 12 | Missing whitespace around operator | Style | Flake8 E225 | Low | 66 | `left=seatsLeft(...)` | Changed to `left = ...`. |
++| 13 | Inline comment spacing | Style | Flake8 E261 | Low | 75 | Only one space before `#`. | Two spaces before the inline comment. |
++| 14 | Blank lines before top-level code | Style | Flake8 E305 | Low | 79 | Only one blank line after the last function. | Added a second blank line. |
++
++## Results
++
++| Tool | Before | After |
++|------|--------|-------|
++| Pylint | 4.64 / 10 (30 messages) | **10.00 / 10** |
++| Bandit | 4 issues (1 High, 1 Medium, 2 Low) | **No issues identified** |
++| Flake8 | 4 issues | **0 issues** |
++
++Reports are in `reports/before/` and `reports/after/`.
++
++## Commits
++
++1. `446d52f` — Bandit fixes (pickle → json, `os.system` → safe `subprocess`, `random` → `secrets`)
++2. `a2ce928` — Flake8 fixes (E231, E225, E261, E305)
++3. `d45f7ab` — Pylint fixes (mutable default, naming, docstrings, unused argument, no-else-return, main guard)
+diff --git a/reflection.md b/reflection.md
+new file mode 100644
+index 0000000..281a473
+--- /dev/null
++++ b/reflection.md
+@@ -0,0 +1,30 @@
++# Reflection
++
++## 1. Which issues were the easiest to fix, and which were the hardest? Why?
++
++The easiest were the Flake8 style issues (missing spaces, inline comment spacing, blank lines) and most Pylint convention messages (docstrings, snake_case names, the unnecessary `else`). Each message points to an exact line and the fix is mechanical. Renaming functions took a little care because every call site in `main()` had to change too.
++
++The hardest was the mutable default argument (`guests=[]`). Pylint reports it as a single warning, but it was causing a real bug: both events shared one guest list, so the Alumni Dinner was reported as full and Meena was turned away even though nobody had registered for it. Understanding *why* the output was wrong took more thought than the one-line fix. The `os.system` replacement was also non-trivial: swapping to `subprocess` made Bandit raise three new low-severity warnings, so I had to resolve the executable path, validate the event name, and then decide which remaining warnings were acceptable.
++
++## 2. Did the static analysis tools report any false positives? If so, describe one example.
++
++Yes, or at least warnings that don't apply in context:
++
++- **Bandit B404 / B603** flag *any* use of `subprocess`, even after it is called safely with a list of arguments, no shell, an absolute executable path and validated input. I reviewed them and suppressed them with targeted `# nosec B404` / `# nosec B603` comments, with the reason written on the line above.
++- **Bandit B311** (`random.choice`) is arguably a false positive for a casual lucky draw, since it's not cryptography. Switching to `secrets.choice` cost nothing, so I fixed it anyway.
++
++On the other side, the tools missed things a human reviewer would catch: none of them noticed that the program's *output* was wrong — Pylint only said "dangerous default value", not "your seat counts are incorrect". Running the program and reading the output was essential.
++
++## 3. How would you integrate static analysis tools into your actual software development workflow?
++
++- **Locally:** run Flake8 and Pylint from the editor on save, and add a `pre-commit` hook that runs Flake8, Pylint and Bandit so bad code never reaches a commit.
++- **In CI:** run all three on every pull request (e.g. a GitHub Actions job), fail the build on any Bandit High/Medium finding, Flake8 error, or a Pylint score below a threshold such as 9.5.
++- **Configuration:** keep the rules in a shared config (`.pylintrc`, `setup.cfg`/`.flake8`, `.bandit`) so the whole team gets the same results, and require a written justification for every `# nosec` or `# pylint: disable`.
++
++## 4. What tangible improvements did you observe in the code quality, readability, or potential robustness after applying the fixes?
++
++- **Correctness:** events no longer share guests. Alumni Dinner now shows 1 seat left and accepts Meena; previously it showed 0 and rejected her.
++- **Security:** no shell injection through event names, no arbitrary code execution from a tampered save file (JSON instead of pickle), and an unpredictable lucky draw.
++- **Readability:** consistent snake_case names, a docstring on every function, PEP 8 formatting, and flatter control flow.
++- **Robustness:** `guest_report` now actually honours `sort_order` and rejects invalid values instead of silently ignoring them; the module can be imported without running the demo.
++- **Measured:** Pylint rose from 4.64 to 10.00/10, Bandit went from 4 issues to none, and Flake8 from 4 issues to none.
+diff --git a/reports/after/bandit_report.txt b/reports/after/bandit_report.txt
+new file mode 100644
+index 0000000..183952a
+--- /dev/null
++++ b/reports/after/bandit_report.txt
+@@ -0,0 +1,27 @@
++[main]	INFO	profile include tests: None
++[main]	INFO	profile exclude tests: None
++[main]	INFO	cli include tests: None
++[main]	INFO	cli exclude tests: None
++[main]	INFO	running on Python 3.13.18
++Run started:2026-11-05 12:59:47.859503+00:00
++
++Test results:
++	No issues identified.
++
++Code scanned:
++	Total lines of code: 91
++	Total lines skipped (#nosec): 0
++	Total potential issues skipped due to specifically being disabled (e.g., #nosec BXXX): 2
++
++Run metrics:
++	Total issues (by severity):
++		Undefined: 0
++		Low: 0
++		Medium: 0
++		High: 0
++	Total issues (by confidence):
++		Undefined: 0
++		Low: 0
++		Medium: 0
++		High: 0
++Files skipped (0):
+diff --git a/reports/after/flake8_report.txt b/reports/after/flake8_report.txt
+new file mode 100644
+index 0000000..e69de29
+diff --git a/reports/after/pylint_report.txt b/reports/after/pylint_report.txt
+new file mode 100644
+index 0000000..d7495ee
+--- /dev/null
++++ b/reports/after/pylint_report.txt
+@@ -0,0 +1,4 @@
++
++--------------------------------------------------------------------
++Your code has been rated at 10.00/10 (previous run: 10.00/10, +0.00)
++
+-- 
+2.43.0
+
